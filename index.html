@@ -26,10 +26,8 @@
 </head>
 <body>
 
-<!-- Splash -->
 <div class="full" id="splash"><img src="icon-192.png" alt=""><b style="font-size:20px">Petrol Exp</b><div class="spin"></div></div>
 
-<!-- Offline -->
 <div class="full" id="offline" hidden>
   <img src="icon-192.png" alt="">
   <b style="font-size:20px">Internet nahi hai</b>
@@ -41,11 +39,7 @@
 <button id="install" hidden>📲 App Install karein</button>
 
 <script>
-/* ============================================================
-   👇 Yahan apna Apps Script Web App URL daalein (…/exec wala)
-   ============================================================ */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMfJrSbBdiMJeuu48uc60rvP0He4htreaZRXfhdcYXje7SPOfe_wexm5eWAOFO_Ro/exec
-';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMfJrSbBdiMJeuu48uc60rvP0He4htreaZRXfhdcYXje7SPOfe_wexm5eWAOFO_Ro/exec';
 
 const frame = document.getElementById('app');
 function start() {
@@ -58,10 +52,8 @@ window.addEventListener('online', () => { if (!frame.src) start(); });
 window.addEventListener('offline', () => { if (!frame.src) document.getElementById('offline').hidden = false; });
 start();
 
-/* Service worker (install ke liye zaroori) */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
-/* Android: Install button */
 let deferred;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault(); deferred = e;
