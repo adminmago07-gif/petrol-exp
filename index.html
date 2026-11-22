@@ -44,7 +44,7 @@
 /* ============================================================
    👇 Yahan apna Apps Script Web App URL daalein (…/exec wala)
    ============================================================ */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzIWWRSiJWOlTtTHTi7GihLDCmxtcsOU9wIJQNcxw4AdU_wwE3ZHH4prC2OgnupAoM/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzh6q0Ais6GaJGt2C7nL5QUgiH1iRZ_6ASxvLvSDqC3za6Wd97XQv70K5oAdTbo7ak/exec';
 
 const frame = document.getElementById('app');
 function start() {
@@ -60,29 +60,57 @@ start();
 /* Service worker (install ke liye zaroori) */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
-/* ===== Location: andar wali app ko yahan se location dete hain ===== */
+/* ===== Location: yahi page location leta hai aur andar wali app ko bhejta hai ===== */
+const WRAP_V = 4;
+let lastLoc = null, lastErr = null;
 function bcast(msg, w, depth) {
   w = w || frame.contentWindow; depth = depth || 0;
-  if (!w || depth > 5) return;
+  if (!w || depth > 6) return;
   try { w.postMessage(msg, '*'); } catch (e) {}
   let n = 0; try { n = w.frames.length; } catch (e) {}
   for (let i = 0; i < n; i++) { try { bcast(msg, w.frames[i], depth + 1); } catch (e) {} }
 }
-frame.addEventListener('load', () => { bcast({ pe: 'hello' }); setTimeout(() => bcast({ pe: 'hello' }), 2000); });
+function sendLoc() {
+  if (lastLoc) bcast(Object.assign({ pe: 'loc', ok: true, v: WRAP_V }, lastLoc));
+  else if (lastErr != null) bcast({ pe: 'loc', ok: false, code: lastErr, v: WRAP_V });
+}
+const gotPos = p => { lastLoc = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() }; lastErr = null; sendLoc(); };
+let watchId = null;
+function startWatch() {
+  if (!navigator.geolocation) { lastErr = 2; return; }
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  // Jaldi wali (network) location
+  navigator.geolocation.getCurrentPosition(p => { if (!lastLoc) gotPos(p); }, () => {},
+    { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+  // GPS wali sahi location, lagataar update
+  watchId = navigator.geolocation.watchPosition(gotPos,
+    err => { if (!lastLoc) { lastErr = err.code; sendLoc(); } },
+    { enableHighAccuracy: true, timeout: 30000, maximumAge: 30000 });
+}
+function oneShot(fresh) {
+  if (!navigator.geolocation) { lastErr = 2; return sendLoc(); }
+  if (lastLoc && Date.now() - lastLoc.t < 60000) return sendLoc();
+  navigator.geolocation.getCurrentPosition(gotPos, err => {
+    if (err.code === 1) { lastErr = 1; lastLoc = null; return sendLoc(); }
+    navigator.geolocation.getCurrentPosition(gotPos, err2 => { if (!lastLoc) { lastErr = err2.code; sendLoc(); } else sendLoc(); },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: fresh ? 0 : 60000 });
+}
+startWatch();
+frame.addEventListener('load', () => {
+  bcast({ pe: 'hello', v: WRAP_V });
+  setTimeout(() => { bcast({ pe: 'hello', v: WRAP_V }); sendLoc(); }, 1500);
+  setTimeout(sendLoc, 5000);
+});
 window.addEventListener('message', e => {
   const d = e.data;
   if (!d || typeof d !== 'object') return;
-  if (d.pe === 'ping') bcast({ pe: 'hello' });
-  if (d.pe === 'getLoc') {
-    if (!navigator.geolocation) return bcast({ pe: 'loc', ok: false, code: 2 });
-    navigator.geolocation.getCurrentPosition(
-      p => bcast({ pe: 'loc', ok: true, lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
-      err => bcast({ pe: 'loc', ok: false, code: err.code }),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: d.fresh ? 0 : 60000 });
-  }
+  if (d.pe === 'ping') { bcast({ pe: 'hello', v: WRAP_V }); sendLoc(); }
+  if (d.pe === 'getLoc') { if (lastErr === 1) startWatch(); oneShot(d.fresh); }
 });
+// App wapas khulne par location taaza karo
+document.addEventListener('visibilitychange', () => { if (!document.hidden) oneShot(false); });
 
-/* Android: Install button */
 let deferred;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault(); deferred = e;
