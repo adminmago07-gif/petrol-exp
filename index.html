@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#ff5e3a">
 <title>Petrol Exp</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -13,11 +13,11 @@
 <meta name="apple-mobile-web-app-title" content="Petrol Exp">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
-  html,body{margin:0;height:100%;background:#0f172a;color:#e2e8f0;font:15px system-ui,-apple-system,Roboto,sans-serif;overflow:hidden}
-  #app{position:fixed;inset:0;width:100%;height:100%;border:0;padding-top:env(safe-area-inset-top);box-sizing:border-box;background:#0f172a}
-  .full{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:#0f172a;z-index:5}
+  html,body{margin:0;height:100%;background:#f3f6fc;color:#0f172a;font:15px system-ui,-apple-system,Roboto,sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0;width:100%;height:100%;border:0;padding-top:env(safe-area-inset-top);box-sizing:border-box;background:#f3f6fc}
+  .full{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:linear-gradient(180deg,#fff3e8,#f3f6fc);z-index:5}
   .full img{width:96px;height:96px;border-radius:22px}
-  .spin{width:38px;height:38px;border:4px solid #334155;border-top-color:#f97316;border-radius:50%;animation:s 1s linear infinite}
+  .spin{width:38px;height:38px;border:4px solid #fed7aa;border-top-color:#f97316;border-radius:50%;animation:s 1s linear infinite}
   @keyframes s{to{transform:rotate(360deg)}}
   button{font:inherit;border:0;border-radius:10px;background:#f97316;color:#fff;padding:12px 20px;font-weight:600;cursor:pointer}
   #install{position:fixed;right:14px;bottom:84px;z-index:6;box-shadow:0 6px 20px rgba(0,0,0,.4)}
@@ -26,20 +26,25 @@
 </head>
 <body>
 
-<div class="full" id="splash"><img src="icon-192.png" alt=""><b style="font-size:20px">Petrol Exp</b><div class="spin"></div></div>
+<!-- Splash -->
+<div class="full" id="splash"><img src="icon-192.png" alt=""><b style="font-size:22px;color:#ff5e3a">Petrol Exp</b><div class="spin"></div></div>
 
+<!-- Offline -->
 <div class="full" id="offline" hidden>
   <img src="icon-192.png" alt="">
   <b style="font-size:20px">Internet nahi hai</b>
-  <div style="color:#94a3b8">Net on karke dobara try karein</div>
+  <div style="color:#64748b">Net on karke dobara try karein</div>
   <button onclick="location.reload()">🔄 Retry</button>
 </div>
 
-<iframe id="app" title="Petrol Exp" allow="camera; clipboard-write"></iframe>
+<iframe id="app" title="Petrol Exp" allow="camera; geolocation; clipboard-write"></iframe>
 <button id="install" hidden>📲 App Install karein</button>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyx9R_QslKsKq6RRnvAyv0UV2oVRx_jNDmzCwdFWRi8jGBSyGDD6G6QgW8KuZTAf4Q/exec';
+/* ============================================================
+   👇 Yahan apna Apps Script Web App URL daalein (…/exec wala)
+   ============================================================ */
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzIWWRSiJWOlTtTHTi7GihLDCmxtcsOU9wIJQNcxw4AdU_wwE3ZHH4prC2OgnupAoM/exec';
 
 const frame = document.getElementById('app');
 function start() {
@@ -52,8 +57,32 @@ window.addEventListener('online', () => { if (!frame.src) start(); });
 window.addEventListener('offline', () => { if (!frame.src) document.getElementById('offline').hidden = false; });
 start();
 
+/* Service worker (install ke liye zaroori) */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
+/* ===== Location: andar wali app ko yahan se location dete hain ===== */
+function bcast(msg, w, depth) {
+  w = w || frame.contentWindow; depth = depth || 0;
+  if (!w || depth > 5) return;
+  try { w.postMessage(msg, '*'); } catch (e) {}
+  let n = 0; try { n = w.frames.length; } catch (e) {}
+  for (let i = 0; i < n; i++) { try { bcast(msg, w.frames[i], depth + 1); } catch (e) {} }
+}
+frame.addEventListener('load', () => { bcast({ pe: 'hello' }); setTimeout(() => bcast({ pe: 'hello' }), 2000); });
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.pe === 'ping') bcast({ pe: 'hello' });
+  if (d.pe === 'getLoc') {
+    if (!navigator.geolocation) return bcast({ pe: 'loc', ok: false, code: 2 });
+    navigator.geolocation.getCurrentPosition(
+      p => bcast({ pe: 'loc', ok: true, lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+      err => bcast({ pe: 'loc', ok: false, code: err.code }),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: d.fresh ? 0 : 60000 });
+  }
+});
+
+/* Android: Install button */
 let deferred;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault(); deferred = e;
